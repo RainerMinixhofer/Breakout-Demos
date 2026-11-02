@@ -10,9 +10,9 @@ Your GPS module is fully functional and communicating with the Raspberry Pi!
 
 ### Check System Status (2 seconds)
 ```bash
-python3 gps_healthcheck.py
+python3 gps_diagnostics.py
 ```
-Verifies all components are ready
+Select option `1` for Quick Health Check
 
 ### Get GPS Position (real-time)
 ```bash
@@ -22,15 +22,15 @@ Displays current position, altitude, and fix quality
 
 ### Watch Satellite Acquisition
 ```bash
-python3 gps_monitor.py
+python3 gps_diagnostics.py
 ```
-Real-time monitor showing fix status and satellite count
+Select option `3` for real-time satellite monitor
 
 ### Run Full Diagnostics (30 seconds)
 ```bash
-python3 gps_diagnostic.py
+python3 gps_diagnostics.py
 ```
-Tests all ports, baud rates, and data formats
+Select option `2` for comprehensive hardware testing
 
 ---
 
@@ -191,7 +191,8 @@ Connect your NEO-6M GPS module as follows:
 ls -la /dev/ttyAMA0
 
 # 2. Run full diagnostics
-python3 gps_diagnostic.py
+python3 gps_diagnostics.py
+# Select option 2 (Comprehensive Diagnostics)
 
 # 3. Test raw connection
 python3 << 'EOF'
@@ -250,15 +251,13 @@ id | grep dialout
 
 ## 📁 Files Included
 
-| File | Purpose | Usage |
-|------|---------|-------|
-| `gpsneo6.py` | Main GPS reader | `python3 gpsneo6.py` |
-| `test.py` | NMEA parser test | `python3 test.py` |
-| `gps_diagnostic.py` | Hardware testing | `python3 gps_diagnostic.py` |
-| `gps_monitor.py` | Satellite monitor | `python3 gps_monitor.py` |
-| `gps_healthcheck.py` | System status | `python3 gps_healthcheck.py` |
-| `GPS_SETUP_COMPLETE.md` | Detailed guide | Reference docs |
-| `QUICKSTART.md` | This file | Quick reference |
+| File | Purpose |
+|------|---------|
+| `gpsneo6.py` | Main GPS reader (production) |
+| `gps_diagnostics.py` | Unified diagnostic tool with menu |
+| `README.md` | Documentation index |
+| `QUICKSTART.md` | This quick reference |
+| `SYSTEM_CONFIGURATION.md` | Technical deep-dive |
 
 ---
 
@@ -266,9 +265,9 @@ id | grep dialout
 
 Before using the GPS in production:
 
-- [ ] Run `gps_healthcheck.py` and see all ✓
-- [ ] Run `gpsneo6.py` and receive UBX messages
-- [ ] Run `gps_monitor.py` and see satellite acquisition
+- [ ] Run `python3 gps_diagnostics.py` and select option 1 (Health Check)
+- [ ] Run `python3 gpsneo6.py` and receive GPS data
+- [ ] Run `python3 gps_diagnostics.py` and select option 3 (Satellite Monitor)
 - [ ] Verify `/dev/ttyAMA0` data flow
 - [ ] Confirm `gpsd` is disabled
 - [ ] Check `/boot/firmware/config.txt` has `dtoverlay=uart0`

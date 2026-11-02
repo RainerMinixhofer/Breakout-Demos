@@ -60,17 +60,18 @@
 
 ---
 
-## 🛠️ Utility Scripts
+## 🛠️ Production Scripts
 
 ### ⭐ [gps_diagnostics.py](gps_diagnostics.py) — UNIFIED DIAGNOSTIC TOOL
 **Runtime:** 2-30 seconds (menu-selectable)  
-**Best for:** All diagnostics in one tool
+**Purpose:** All diagnostics in one menu-driven tool
 
-Menu-driven interface with options:
+**Interactive menu with options:**
 1. **Quick Health Check** (2 sec) — System status verification
 2. **Comprehensive Diagnostics** (30 sec) — Port/baud/protocol testing
 3. **Satellite Monitor** (continuous) — Real-time satellite acquisition
 4. **All Tests** (5 min) — Sequential complete verification
+0. Exit
 
 ```bash
 python3 gps_diagnostics.py
@@ -78,39 +79,35 @@ python3 gps_diagnostics.py
 
 Then select option 1-4 from the menu.
 
-**Use this:** For all diagnostic and testing purposes (replaces old individual scripts)
-
----
-
-### Legacy Diagnostic Scripts (Deprecated)
-
-The following scripts still work but functionality is now in `gps_diagnostics.py`:
-- `gps_healthcheck.py` — Now option 1 in unified tool
-- `gps_diagnostic.py` — Now option 2 in unified tool
-- `gps_monitor.py` — Now option 3 in unified tool
-
-See [DIAGNOSTIC_MIGRATION.md](DIAGNOSTIC_MIGRATION.md) for details.
-
 ---
 
 ### [gpsneo6.py](gpsneo6.py)
 **Runtime:** Varies by timeout  
-**Best for:** Production GPS reading
+**Purpose:** Production GPS data reader
 
-Reads:
-- UBX NAV-PVT messages
+Provides:
+- UBX NAV-PVT message parsing
 - Position (latitude, longitude)
-- Altitude
-- Fix quality
-- Time
+- Altitude and fix quality
+- Timestamp data
+- Class-based API for integration
 
+**Usage:**
 ```bash
 python3 gpsneo6.py                    # Default 15-second timeout
 python3 gpsneo6.py --timeout=60       # Custom timeout
 python3 gpsneo6.py --port=/dev/ttyAMA0  # Specific port
 ```
 
-**Use this:** In your actual GPS-reading application
+**Integration example:**
+```python
+from gpsneo6 import GPSNeo6
+
+gps = GPSNeo6()
+snapshot = gps.read_snapshot()
+print(f"Position: {snapshot['latitude']}, {snapshot['longitude']}")
+gps.close()
+```
 
 ---
 
@@ -119,25 +116,43 @@ python3 gpsneo6.py --port=/dev/ttyAMA0  # Specific port
 **What do you want to do?**
 
 ### 1. "Get started right now"
-→ Read [QUICKSTART.md](QUICKSTART.md)  
-→ Run `python3 gps_healthcheck.py`  
-→ Run `python3 gpsneo6.py`
+```bash
+python3 gps_diagnostics.py  # Select option 1 (Quick Health Check)
+python3 gpsneo6.py          # Read GPS data
+```
 
 ### 2. "Verify my system is working"
-→ Run `python3 gps_healthcheck.py`  
-→ Run `python3 gps_diagnostic.py`  
-→ Check [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md) if any issues
+```bash
+python3 gps_diagnostics.py  # Select option 2 (Comprehensive Diagnostics)
+```
 
 ### 3. "I got an error, help!"
-→ Check "[Troubleshooting](QUICKSTART.md#-troubleshooting)" in [QUICKSTART.md](QUICKSTART.md)  
-→ If not solved, check "[Troubleshooting Configuration](SYSTEM_CONFIGURATION.md#7-troubleshooting-configuration)" in [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md)  
-→ Run `python3 gps_diagnostic.py` for detailed info
+1. Check "[Troubleshooting](QUICKSTART.md#-troubleshooting)" in [QUICKSTART.md](QUICKSTART.md)
+2. Run comprehensive diagnostics:
+   ```bash
+   python3 gps_diagnostics.py  # Select option 2
+   ```
+3. For deep technical details, see [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md)
 
 ### 4. "I need to change configuration"
-→ Read [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md) section 1-3  
-→ Make changes to `/boot/firmware/config.txt` or `/boot/firmware/cmdline.txt`  
-→ Reboot  
-→ Run `python3 gps_healthcheck.py` to verify
+1. Read [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md) sections 1-3
+2. Edit `/boot/firmware/config.txt` or `/boot/firmware/cmdline.txt`
+3. Reboot your Pi
+4. Verify:
+   ```bash
+   python3 gps_diagnostics.py  # Select option 1
+   ```
+
+### 5. "Watch satellites being acquired"
+```bash
+python3 gps_diagnostics.py  # Select option 3 (Satellite Monitor)
+```
+
+### 6. "Run all tests sequentially"
+```bash
+python3 gps_diagnostics.py  # Select option 4 (All Tests)
+```
+
 
 ### 5. "System is broken, I need recovery"
 → Read "[Recovery Procedures](SYSTEM_CONFIGURATION.md#9-recovery-procedures)" in [SYSTEM_CONFIGURATION.md](SYSTEM_CONFIGURATION.md)  
@@ -172,37 +187,29 @@ python3 gpsneo6.py --port=/dev/ttyAMA0  # Specific port
 | GPS Module | ✓ Connected | Communicating at 9600 baud |
 | Data Format | ✓ UBX Binary | u-blox protocol active |
 
-### ✓ Scripts Tested
+### ✓ Active Scripts
 
-- `gps_healthcheck.py` — ✓ PASS
-- `gps_diagnostic.py` — ✓ PASS (data detected)
-- `gps_monitor.py` — ✓ PASS (listening for satellites)
-- `gpsneo6.py` — ✓ PASS (receiving UBX messages)
+- `gps_diagnostics.py` — Unified menu tool (all diagnostics)
+- `gpsneo6.py` — Main GPS reader
 
 ---
 
-## 🔍 File Locations
+## 📁 File Structure
 
 All files are in: `/home/rainer/Projects/Breakout-Demos/GPSNeo6/`
 
 ```
 GPSNeo6/
-├── README (this file)
+├── README.md                          ← You are here
+├── QUICKSTART.md                      ← Quick start guide
+├── SYSTEM_CONFIGURATION.md            ← Technical reference
 │
-├── Documentation/
-│   ├── QUICKSTART.md                    ← Start here
-│   ├── SYSTEM_CONFIGURATION.md          ← Technical details
-│   └── GPS_SETUP_COMPLETE.md            ← Setup summary
-│
-├── Scripts/
-│   ├── gpsneo6.py                       ← Main GPS reader
-│   ├── gps_healthcheck.py               ← 2-second check
-│   ├── gps_diagnostic.py                ← 30-second test
-│   ├── gps_monitor.py                   ← Real-time monitor
-│   └── test.py                          ← NMEA parser test
+├── gpsneo6.py                         ← Main GPS reader (production)
+├── gps_diagnostics.py                 ← Unified diagnostic tool
 │
 └── Configuration (on Pi filesystem)/
-    ├── /boot/firmware/config.txt        ← Boot parameters
+    ├── /boot/firmware/config.txt      ← Boot parameters
+
     └── /boot/firmware/cmdline.txt       ← Kernel command line
 ```
 
