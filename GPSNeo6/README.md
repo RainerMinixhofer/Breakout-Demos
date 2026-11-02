@@ -62,59 +62,34 @@
 
 ## 🛠️ Utility Scripts
 
-### [gps_healthcheck.py](gps_healthcheck.py)
-**Runtime:** ~2 seconds  
-**Best for:** Quick verification before use
+### ⭐ [gps_diagnostics.py](gps_diagnostics.py) — UNIFIED DIAGNOSTIC TOOL
+**Runtime:** 2-30 seconds (menu-selectable)  
+**Best for:** All diagnostics in one tool
 
-Checks:
-- Serial ports exist and accessible
-- Python modules installed
-- gpsd is disabled
-- GPS hardware can be opened
-- Data is being received
+Menu-driven interface with options:
+1. **Quick Health Check** (2 sec) — System status verification
+2. **Comprehensive Diagnostics** (30 sec) — Port/baud/protocol testing
+3. **Satellite Monitor** (continuous) — Real-time satellite acquisition
+4. **All Tests** (5 min) — Sequential complete verification
 
 ```bash
-python3 gps_healthcheck.py
+python3 gps_diagnostics.py
 ```
 
-**Use this:** Before running GPS scripts to verify system is ready
+Then select option 1-4 from the menu.
+
+**Use this:** For all diagnostic and testing purposes (replaces old individual scripts)
 
 ---
 
-### [gps_diagnostic.py](gps_diagnostic.py)
-**Runtime:** ~30 seconds  
-**Best for:** Comprehensive hardware testing
+### Legacy Diagnostic Scripts (Deprecated)
 
-Tests:
-- All available serial ports
-- All baud rates (9600-230400)
-- GPS data presence
-- Protocol detection (UBX vs NMEA)
-- System information
+The following scripts still work but functionality is now in `gps_diagnostics.py`:
+- `gps_healthcheck.py` — Now option 1 in unified tool
+- `gps_diagnostic.py` — Now option 2 in unified tool
+- `gps_monitor.py` — Now option 3 in unified tool
 
-```bash
-python3 gps_diagnostic.py
-```
-
-**Use this:** When troubleshooting connection issues or to verify your specific GPS configuration
-
----
-
-### [gps_monitor.py](gps_monitor.py)
-**Runtime:** Continuous (Ctrl+C to stop)  
-**Best for:** Watching satellite acquisition
-
-Shows:
-- Current fix status (NO FIX → 2D → 3D)
-- Satellite count
-- Coordinates when acquired
-- Real-time updates
-
-```bash
-python3 gps_monitor.py
-```
-
-**Use this:** On first-time GPS setup to watch satellites being acquired
+See [DIAGNOSTIC_MIGRATION.md](DIAGNOSTIC_MIGRATION.md) for details.
 
 ---
 
