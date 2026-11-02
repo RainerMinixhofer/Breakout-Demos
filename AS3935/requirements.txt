@@ -1,0 +1,5 @@
+# For hardware access on Raspberry Pi/Linux:
+#   sudo apt install python3-gpiod i2c-tools
+#   python -m pip install smbus2
+
+smbus2>=0.4.3

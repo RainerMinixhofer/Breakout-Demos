@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMC2209 Steuerung</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="panel">
+        <h1>TMC2209 Stepper-Steuerung</h1>
+
+        <div class="status-grid">
+            <div class="card">
+                <label>Position</label>
+                <strong id="position">0</strong>
+            </div>
+            <div class="card">
+                <label>Geschwindigkeit</label>
+                <strong id="speed">200</strong> Hz
+            </div>
+            <div class="card">
+                <label>Status</label>
+                <strong id="running">Aus</strong>
+            </div>
+        </div>
+
+        <form id="moveForm">
+            <div class="field-row">
+                <label for="steps">Schritte</label>
+                <input id="steps" type="number" value="200" min="1" max="50000">
+            </div>
+
+            <div class="field-row">
+                <label for="speedHz">Max. Geschwindigkeit (Hz)</label>
+                <input id="speedHz" type="number" value="200" min="1" max="5000">
+            </div>
+
+            <div class="field-row">
+                <label for="accelHz">Beschleunigung (Hz/s)</label>
+                <input id="accelHz" type="number" value="800" min="1" max="20000">
+            </div>
+
+            <div class="field-row">
+                <label for="direction">Richtung</label>
+                <select id="direction">
+                    <option value="1">Vorwärts</option>
+                    <option value="-1">Rückwärts</option>
+                </select>
+            </div>
+
+            <div class="button-row">
+                <button type="submit">Bewegen</button>
+                <button type="button" class="secondary" id="stopButton">Stop</button>
+            </div>
+        </form>
+
+        <div class="card config-box">
+            <h2>UART-Konfiguration</h2>
+            <div class="field-row inline">
+                <label for="microsteps">Microsteps</label>
+                <input id="microsteps" type="number" value="16" min="1" max="256">
+            </div>
+            <div class="field-row inline">
+                <label for="currentMa">Strom (mA)</label>
+                <input id="currentMa" type="number" value="800" min="50" max="2200">
+            </div>
+            <button type="button" id="applyConfigButton">Konfiguration anwenden</button>
+        </div>
+
+        <div class="card config-box">
+            <h2>UART-Test</h2>
+            <div class="field-row inline">
+                <label for="registerTestAddress">Register</label>
+                <input id="registerTestAddress" type="number" value="111" min="0" max="255">
+            </div>
+            <div class="button-row">
+                <button type="button" id="uartTestButton">UART lesen</button>
+                <button type="button" id="uartSelfCheckButton">Self-Check</button>
+            </div>
+        </div>
+
+        <div class="card config-box">
+            <h2>UART Bus Setup</h2>
+            <div class="field-row inline">
+                <label for="uartDevice">UART Device</label>
+                <input id="uartDevice" type="text" value="/dev/serial0">
+            </div>
+            <div class="field-row inline">
+                <label for="uartAddress">UART Adresse (MS1/MS2)</label>
+                <input id="uartAddress" type="number" value="0" min="0" max="3">
+            </div>
+            <div class="field-row inline">
+                <label for="uartBaudrate">UART Baudrate</label>
+                <input id="uartBaudrate" type="number" value="19200" min="1200" max="115200">
+            </div>
+            <button type="button" id="applyUartSettingsButton">UART Setup übernehmen</button>
+        </div>
+
+        <div class="card config-box">
+            <h2>UART Diagnose</h2>
+            <pre id="uartDiagnosticText" class="diagnostic">Noch kein UART-Test ausgeführt.</pre>
+        </div>
+
+        <div class="card config-box">
+            <h2>Register Map (Read/Write)</h2>
+            <div class="field-row inline">
+                <label for="registerSelect">Register</label>
+                <select id="registerSelect"></select>
+            </div>
+            <p id="registerPrimaryFunction" class="register-primary-function">Funktion: -</p>
+            <div class="field-row inline">
+                <label for="registerAddressInput">Adresse</label>
+                <input id="registerAddressInput" type="text" value="0x6F">
+            </div>
+            <div class="field-row inline">
+                <label for="registerValueInput">Wert (32-bit)</label>
+                <input id="registerValueInput" type="text" value="0x00000000">
+            </div>
+            <div class="button-row">
+                <button type="button" id="registerReadButton">Register lesen</button>
+                <button type="button" id="registerWriteButton">Register schreiben</button>
+            </div>
+            <pre id="registerAccessText" class="diagnostic">Noch kein Registerzugriff.</pre>
+        </div>
+
+        <div class="button-row compact">
+            <button type="button" id="enableButton">Enable</button>
+            <button type="button" class="secondary" id="disableButton">Disable</button>
+        </div>
+
+        <p id="message" class="message">Bereit</p>
+    </main>
+
+    <script>
+        const form = document.getElementById('moveForm');
+        const statusText = document.getElementById('message');
+        const positionEl = document.getElementById('position');
+        const speedEl = document.getElementById('speed');
+        const runningEl = document.getElementById('running');
+        const uartDiagnosticTextEl = document.getElementById('uartDiagnosticText');
+        const registerAccessTextEl = document.getElementById('registerAccessText');
+        const registerSelectEl = document.getElementById('registerSelect');
+        const registerPrimaryFunctionEl = document.getElementById('registerPrimaryFunction');
+        let registerMap = [];
+
+        function formatRegisterResult(result) {
+            if (!result) {
+                return 'Noch kein Registerzugriff.';
+            }
+            if (!result.ok) {
+                return `Fehler: ${result.error || result.message || 'Unbekannter Fehler'}`;
+            }
+            return [
+                `Name: ${result.name}`,
+                `Adresse: 0x${Number(result.address).toString(16).toUpperCase()}`,
+                `Access: ${result.access}`,
+                `Wert: 0x${Number(result.value).toString(16).padStart(8, '0').toUpperCase()} (${Number(result.value)})`
+            ].join('\n');
+        }
+
+        function parseNumericInput(value) {
+            const trimmed = String(value).trim();
+            if (trimmed.toLowerCase().startsWith('0x')) {
+                return Number.parseInt(trimmed, 16);
+            }
+            return Number.parseInt(trimmed, 10);
+        }
+
+        function updateRegisterSelectionInfo() {
+            const selectedAddress = parseNumericInput(registerSelectEl.value);
+            const selected = registerMap.find((entry) => entry.address === selectedAddress);
+            if (!selected) {
+                registerPrimaryFunctionEl.textContent = 'Funktion: -';
+                return;
+            }
+            document.getElementById('registerAddressInput').value =
+                `0x${selected.address.toString(16).toUpperCase()}`;
+            document.getElementById('registerWriteButton').disabled = !selected.access.includes('W');
+            registerPrimaryFunctionEl.textContent = `Funktion: ${selected.primary_function || '-'}`;
+        }
+
+        async function loadRegisterMap() {
+            const response = await fetch('/api/register-map');
+            const result = await response.json();
+            if (!result.ok) {
+                throw new Error(result.error || 'Register map konnte nicht geladen werden');
+            }
+            registerMap = result.registers || [];
+            registerSelectEl.innerHTML = '';
+            for (const entry of registerMap) {
+                const option = document.createElement('option');
+                option.value = entry.address;
+                option.textContent = `${entry.name} (0x${entry.address.toString(16).toUpperCase()}) [${entry.access}]`;
+                registerSelectEl.appendChild(option);
+            }
+            registerSelectEl.value = String(0x6F);
+            updateRegisterSelectionInfo();
+        }
+
+        function formatResultBlock(title, result) {
+            if (!result) {
+                return `${title}\n-`;
+            }
+            return [
+                title,
+                `OK: ${result.ok}`,
+                `Mode: ${result.mode}`,
+                `Art: ${result.kind || 'uart_test'}`,
+                `Device: ${result.device || '-'}`,
+                `Adresse: ${result.address ?? '-'}`,
+                `Register: ${result.register !== undefined ? `0x${Number(result.register).toString(16).toUpperCase()}` : '-'}`,
+                `Wert: ${result.value !== undefined ? `0x${Number(result.value).toString(16).padStart(8, '0').toUpperCase()}` : '-'}`,
+                `Samples: ${(result.samples || []).map((v) => `0x${Number(v).toString(16).toUpperCase()}`).join(', ') || '-'}`,
+                `Errors: ${(result.errors || []).join(' | ') || '-'}`,
+                `Message: ${result.message || '-'}`
+            ].join('\n');
+        }
+
+        function renderDiagnostics(lastSelfCheck, lastTest) {
+            if (!lastTest && !lastSelfCheck) {
+                uartDiagnosticTextEl.textContent = 'Noch kein UART-Test ausgeführt.';
+                return;
+            }
+            const blocks = [
+                formatResultBlock('=== UART Self-Check ===', lastSelfCheck),
+                formatResultBlock('=== UART Register Test ===', lastTest)
+            ];
+            uartDiagnosticTextEl.textContent = blocks.join('\n\n');
+        }
+
+        async function refreshStatus() {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            positionEl.textContent = data.position_steps;
+            speedEl.textContent = data.speed_hz;
+            runningEl.textContent = data.running ? 'Läuft' : 'Aus';
+            document.getElementById('microsteps').value = data.microsteps || 16;
+            document.getElementById('currentMa').value = data.current_ma || 800;
+            document.getElementById('uartDevice').value = data.uart_device || '/dev/serial0';
+            document.getElementById('uartAddress').value = data.uart_address ?? 0;
+            document.getElementById('uartBaudrate').value = data.uart_baudrate || 19200;
+            renderDiagnostics(data.uart_last_self_check, data.uart_last_test);
+            registerAccessTextEl.textContent = formatRegisterResult(data.uart_last_register_access);
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {
+                steps: Number(document.getElementById('steps').value),
+                speed_hz: Number(document.getElementById('speedHz').value),
+                acceleration_hz_per_s: Number(document.getElementById('accelHz').value),
+                direction: Number(document.getElementById('direction').value)
+            };
+
+            statusText.textContent = 'Bewegung gestartet...';
+            const response = await fetch('/api/move', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!result.ok) {
+                statusText.textContent = 'Fehler: ' + result.error;
+            } else {
+                statusText.textContent = `Bewegung gestartet: ${result.steps} Schritte bei ${result.speed_hz} Hz`;
+            }
+            await refreshStatus();
+        });
+
+        document.getElementById('stopButton').addEventListener('click', async () => {
+            await fetch('/api/stop', { method: 'POST' });
+            statusText.textContent = 'Motor gestoppt';
+            await refreshStatus();
+        });
+
+        document.getElementById('enableButton').addEventListener('click', async () => {
+            await fetch('/api/enable', { method: 'POST' });
+            statusText.textContent = 'Motor aktiviert';
+            await refreshStatus();
+        });
+
+        document.getElementById('disableButton').addEventListener('click', async () => {
+            await fetch('/api/disable', { method: 'POST' });
+            statusText.textContent = 'Motor deaktiviert';
+            await refreshStatus();
+        });
+
+        document.getElementById('applyConfigButton').addEventListener('click', async () => {
+            const payload = {
+                microsteps: Number(document.getElementById('microsteps').value),
+                current_ma: Number(document.getElementById('currentMa').value),
+                max_speed_hz: Number(document.getElementById('speedHz').value),
+                acceleration_hz_per_s: Number(document.getElementById('accelHz').value)
+            };
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok ? 'UART-Konfiguration übernommen' : 'Konfigurationsfehler: ' + result.error;
+            await refreshStatus();
+        });
+
+        document.getElementById('uartTestButton').addEventListener('click', async () => {
+            const register = Number(document.getElementById('registerTestAddress').value);
+            const response = await fetch('/api/uart-test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ register })
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok
+                ? `UART-Test OK: ${result.message}`
+                : `UART-Test fehlgeschlagen: ${result.message}`;
+            await refreshStatus();
+        });
+
+        document.getElementById('uartSelfCheckButton').addEventListener('click', async () => {
+            const response = await fetch('/api/uart-self-check', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok
+                ? `UART Self-Check OK: ${result.message}`
+                : `UART Self-Check fehlgeschlagen: ${result.message}`;
+            await refreshStatus();
+        });
+
+        document.getElementById('applyUartSettingsButton').addEventListener('click', async () => {
+            const payload = {
+                uart_device: document.getElementById('uartDevice').value.trim(),
+                uart_address: Number(document.getElementById('uartAddress').value),
+                uart_baudrate: Number(document.getElementById('uartBaudrate').value)
+            };
+            const response = await fetch('/api/uart-settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok
+                ? `UART Setup gesetzt: ${result.uart_device}, Addr ${result.uart_address}, Baud ${result.uart_baudrate}`
+                : `UART Setup Fehler: ${result.error}`;
+            await refreshStatus();
+        });
+
+        registerSelectEl.addEventListener('change', updateRegisterSelectionInfo);
+
+        document.getElementById('registerReadButton').addEventListener('click', async () => {
+            const address = parseNumericInput(document.getElementById('registerAddressInput').value);
+            const response = await fetch('/api/register-read', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ address })
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok
+                ? `Register gelesen: ${result.name} = 0x${Number(result.value).toString(16).toUpperCase()}`
+                : `Register lesen fehlgeschlagen: ${result.error}`;
+            await refreshStatus();
+        });
+
+        document.getElementById('registerWriteButton').addEventListener('click', async () => {
+            const address = parseNumericInput(document.getElementById('registerAddressInput').value);
+            const value = parseNumericInput(document.getElementById('registerValueInput').value);
+            const response = await fetch('/api/register-write', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ address, value })
+            });
+            const result = await response.json();
+            statusText.textContent = result.ok
+                ? `Register geschrieben: ${result.name} <= 0x${Number(result.value).toString(16).toUpperCase()}`
+                : `Register schreiben fehlgeschlagen: ${result.error}`;
+            await refreshStatus();
+        });
+
+        async function initPage() {
+            try {
+                await loadRegisterMap();
+            } catch (error) {
+                statusText.textContent = `Register map laden fehlgeschlagen: ${error.message}`;
+            }
+            await refreshStatus();
+        }
+
+        initPage();
+        setInterval(refreshStatus, 500);
+    </script>
+</body>
+</html>

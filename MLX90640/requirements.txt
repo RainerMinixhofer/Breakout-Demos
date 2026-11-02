@@ -1,0 +1,29 @@
+# MLX90640 Thermal Camera - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core thermal camera driver (RECOMMENDED: mlx90640-driver)
+mlx90640-driver>=1.1.2
+# Linux devicetree backend for mlx90640-driver (required on SBCs)
+mlx90640-driver-devicetree>=1.1.0
+
+# Scientific computing and numerical arrays
+numpy>=1.21.0
+
+# Data visualization
+matplotlib>=3.4.0
+
+# Image processing
+Pillow>=8.3.0
+
+# Advanced numerical operations
+scipy>=1.7.0
+
+# Computer vision (optional but recommended)
+opencv-python>=4.5.0
+
+# Web frontend
+Flask>=3.0.0
+
+# Development and testing (optional)
+pytest>=6.2.0
+pytest-cov>=2.12.0

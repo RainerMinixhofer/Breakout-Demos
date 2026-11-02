@@ -1,0 +1,5 @@
+{
+  "platformio-ide.useBuiltinPIOCore": true,
+  "platformio-ide.customPATH": "/home/rainer/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games",
+  "platformio-ide.pioHomeServerHttpHost": "0.0.0.0"
+}

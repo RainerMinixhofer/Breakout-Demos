@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "as3935-modern"
+version = "0.1.0"
+description = "Modern AS3935 lightning sensor driver with gpiod interrupt support"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["smbus2>=0.4.3"]
+authors = [{ name = "OpenAI" }]
+license = { text = "MIT" }
+keywords = ["as3935", "lightning", "sensor", "raspberry-pi", "gpiod"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+as3935 = "as3935.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

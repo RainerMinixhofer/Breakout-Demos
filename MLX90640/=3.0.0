@@ -1,0 +1,25 @@
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Collecting Flask
+  Using cached https://www.piwheels.org/simple/flask/flask-3.1.3-py3-none-any.whl.metadata (3.2 kB)
+Collecting blinker>=1.9.0 (from Flask)
+  Using cached https://www.piwheels.org/simple/blinker/blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+Collecting click>=8.1.3 (from Flask)
+  Using cached https://www.piwheels.org/simple/click/click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting itsdangerous>=2.2.0 (from Flask)
+  Using cached https://www.piwheels.org/simple/itsdangerous/itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+Collecting jinja2>=3.1.2 (from Flask)
+  Using cached https://www.piwheels.org/simple/jinja2/jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting markupsafe>=2.1.1 (from Flask)
+  Using cached markupsafe-3.0.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+Collecting werkzeug>=3.1.0 (from Flask)
+  Using cached https://www.piwheels.org/simple/werkzeug/werkzeug-3.1.9-py3-none-any.whl.metadata (4.1 kB)
+Using cached https://www.piwheels.org/simple/flask/flask-3.1.3-py3-none-any.whl (103 kB)
+Using cached https://www.piwheels.org/simple/blinker/blinker-1.9.0-py3-none-any.whl (8.5 kB)
+Using cached https://www.piwheels.org/simple/click/click-8.5.0-py3-none-any.whl (125 kB)
+Using cached https://www.piwheels.org/simple/itsdangerous/itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+Using cached https://www.piwheels.org/simple/jinja2/jinja2-3.1.6-py3-none-any.whl (134 kB)
+Using cached markupsafe-3.0.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+Using cached https://www.piwheels.org/simple/werkzeug/werkzeug-3.1.9-py3-none-any.whl (228 kB)
+Installing collected packages: markupsafe, itsdangerous, click, blinker, werkzeug, jinja2, Flask
+
+Successfully installed Flask-3.1.3 blinker-1.9.0 click-8.5.0 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.4 werkzeug-3.1.9
