@@ -57,7 +57,7 @@ NMEA_FIX_TYPE_LABELS = {
     8: "SIMULATION",
 }
 
-DEFAULT_PORT_CANDIDATES = ("/dev/serial0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyUSB0", "/dev/ttyUSB1")
+DEFAULT_PORT_CANDIDATES = ("/dev/ttyAMA0", "/dev/serial0", "/dev/ttyS0", "/dev/ttyUSB0", "/dev/ttyUSB1")
 UBX_POLL_IDS = {
     "MON-VER": (b"\x0a", b"\x04"),
     "MON-HW": (b"\x0a", b"\x09"),

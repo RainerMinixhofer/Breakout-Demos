@@ -23,49 +23,45 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 try:
-    board = importlib.import_module("board")
-    busio = importlib.import_module("busio")
-    adafruit_bme280 = importlib.import_module("adafruit_bme280.basic")
+    smbus2 = importlib.import_module("smbus2")
 except ImportError as exc:  # pragma: no cover
     raise RuntimeError(
-        "Install the Adafruit BME280 library in the venv: "
-        "pip install adafruit-circuitpython-bme280"
+        "Install smbus2 in the venv: pip install smbus2"
     ) from exc
 
 
 class BME280:
-    """Thin wrapper around the Adafruit BME280 sensor driver."""
+    """BME280 sensor driver using smbus2 I2C communication."""
     EXPECTED_CHIP_ID = 0x60
+    REG_CTRL_HUM = 0xF2
+    REG_STATUS = 0xF3
+    REG_CTRL_MEAS = 0xF4
+    REG_CONFIG = 0xF5
 
     def __init__(self, bus: int = 1, address: int = 0x76, *, timeout: float = 0.05) -> None:
         self.bus = bus
         self.address = address
         self.timeout = timeout
-        self.i2c = None
-        self.sensor = self._create_sensor()
+        self.i2c = smbus2.SMBus(bus)
+        self._configure_sensor()
+        self.calibration = self._read_calibration_data()
+        self.t_fine = 0
 
-    def _create_sensor(self):
-        if self.bus != 1:
-            raise ValueError("This example expects the BME280 on I2C bus 1.")
+    def _write_register_byte(self, register: int, value: int) -> None:
+        self.i2c.write_byte_data(self.address, register, value & 0xFF)
 
-        self.i2c = busio.I2C(board.SCL, board.SDA)
-        return adafruit_bme280.Adafruit_BME280_I2C(self.i2c, address=self.address)
+    def _configure_sensor(self) -> None:
+        """Configure BME280 in normal mode with x1 oversampling."""
+        # Per datasheet: write ctrl_hum first, then ctrl_meas.
+        self._write_register_byte(self.REG_CTRL_HUM, 0x01)   # humidity oversampling x1
+        self._write_register_byte(self.REG_CONFIG, 0x00)     # filter off, default standby
+        self._write_register_byte(self.REG_CTRL_MEAS, 0x27)  # temp x1, press x1, mode normal
 
     def _read_register_byte(self, register: int) -> int:
-        write_buffer = bytes((register & 0xFF,))
-        read_buffer = bytearray(1)
-        if self.i2c is None:
-            raise RuntimeError("I2C bus is not initialized.")
-        self.i2c.writeto_then_readfrom(self.address, write_buffer, read_buffer)
-        return read_buffer[0]
+        return self.i2c.read_byte_data(self.address, register)
 
     def _read_register_bytes(self, start_register: int, length: int) -> bytes:
-        write_buffer = bytes((start_register & 0xFF,))
-        read_buffer = bytearray(length)
-        if self.i2c is None:
-            raise RuntimeError("I2C bus is not initialized.")
-        self.i2c.writeto_then_readfrom(self.address, write_buffer, read_buffer)
-        return bytes(read_buffer)
+        return bytes(self.i2c.read_i2c_block_data(self.address, start_register, length))
 
     @staticmethod
     def _u16_le(msb_lsb: bytes) -> int:
@@ -115,6 +111,96 @@ class BME280:
             },
         }
 
+    def _compensate_temperature(self, adc_temp: int) -> int:
+        """Compensate temperature value using calibration data.
+        Returns t_fine which is temperature in 0.005°C units."""
+        t1 = self.calibration["temperature_calibration"]["T1"]
+        t2 = self.calibration["temperature_calibration"]["T2"]
+        t3 = self.calibration["temperature_calibration"]["T3"]
+
+        var1 = (adc_temp >> 3) - (t1 << 1)
+        var2 = (var1 * t2) >> 11
+        var3 = ((var1 >> 1) * (var1 >> 1)) >> 12
+        var3 = ((var3) * (t3)) >> 14
+        self.t_fine = var2 + var3
+        return self.t_fine
+
+    def _get_temperature_celsius(self) -> float:
+        """Convert t_fine to temperature in Celsius."""
+        return self.t_fine / 5120.0
+
+    def _compensate_pressure(self, adc_pres: int) -> float:
+        """Compensate pressure value using calibration data.
+        Uses floating-point algorithm for accuracy."""
+        p1 = self.calibration["pressure_calibration"]["P1"]
+        p2 = self.calibration["pressure_calibration"]["P2"]
+        p3 = self.calibration["pressure_calibration"]["P3"]
+        p4 = self.calibration["pressure_calibration"]["P4"]
+        p5 = self.calibration["pressure_calibration"]["P5"]
+        p6 = self.calibration["pressure_calibration"]["P6"]
+        p7 = self.calibration["pressure_calibration"]["P7"]
+        p8 = self.calibration["pressure_calibration"]["P8"]
+        p9 = self.calibration["pressure_calibration"]["P9"]
+
+        var1 = (self.t_fine / 2.0) - 64000.0
+        var2 = var1 * var1 * p6 / 32768.0
+        var2 = var2 + var1 * p5 * 2.0
+        var2 = (var2 / 4.0) + (p4 * 65536.0)
+        var1 = (p3 * var1 * var1 / 524288.0 + p2 * var1) / 524288.0
+        var1 = (1.0 + var1 / 32768.0) * p1
+        
+        if var1 == 0:
+            return 0
+        
+        pressure = 1048576.0 - adc_pres
+        pressure = ((pressure - var2 / 4096.0) * 6250.0) / var1
+        var1 = p9 * pressure * pressure / 2147483648.0
+        var2 = pressure * p8 / 32768.0
+        pressure = pressure + (var1 + var2 + p7) / 16.0
+        
+        return pressure / 100.0
+
+    def _compensate_humidity(self, adc_hum: int) -> float:
+        """Compensate humidity value using calibration data."""
+        h1 = self.calibration["humidity_calibration"]["H1"]
+        h2 = self.calibration["humidity_calibration"]["H2"]
+        h3 = self.calibration["humidity_calibration"]["H3"]
+        h4 = self.calibration["humidity_calibration"]["H4"]
+        h5 = self.calibration["humidity_calibration"]["H5"]
+        h6 = self.calibration["humidity_calibration"]["H6"]
+
+        var_h = self.t_fine - 76800
+        var_h = (adc_hum - (h4 * 64 + h5 / 16384.0 * var_h)) * (
+            h2 / 65536.0 * (1.0 + h6 / 67108864.0 * var_h * (1.0 + h3 / 67108864.0 * var_h))
+        )
+        var_h = var_h * (1.0 - h1 * var_h / 524288.0)
+        return max(0.0, min(100.0, var_h))
+
+    def read(self):
+        """Read the latest temperature, pressure, and humidity values."""
+        time.sleep(self.timeout)
+
+        ctrl_meas = self._read_register_byte(self.REG_CTRL_MEAS)
+        if (ctrl_meas & 0x03) == 0:
+            self._configure_sensor()
+            time.sleep(self.timeout)
+
+        data = self._read_register_bytes(0xF7, 8)
+        adc_pres = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
+        adc_temp = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
+        adc_hum = (data[6] << 8) | data[7]
+
+        t_fine = self._compensate_temperature(adc_temp)
+        temp_c = self._get_temperature_celsius()
+        pres_hpa = self._compensate_pressure(adc_pres)
+        hum_pct = self._compensate_humidity(adc_hum)
+
+        return {
+            "temperature_c": round(temp_c, 2),
+            "pressure_hpa": round(pres_hpa, 2),
+            "humidity_pct": round(hum_pct, 2),
+        }
+
     @staticmethod
     def _format_unique_id(value: Any) -> str | None:
         if value is None:
@@ -128,17 +214,11 @@ class BME280:
         return str(value)
 
     def _detect_unique_id(self) -> tuple[str | None, str | None]:
-        candidates = (
-            ("sensor.unique_id", getattr(self.sensor, "unique_id", None)),
-            ("sensor.serial_number", getattr(self.sensor, "serial_number", None)),
-            ("sensor.uid", getattr(self.sensor, "uid", None)),
-            ("sensor.device_id", getattr(self.sensor, "device_id", None)),
-        )
-        for source, raw_value in candidates:
-            value = self._format_unique_id(raw_value)
-            if value:
-                return value, source
-        return None, None
+        try:
+            chip_id = self._read_register_byte(0xD0)
+            return self._format_unique_id(chip_id), "chip_id"
+        except Exception:
+            return None, None
 
     def read_info(self):
         """Return the chip and calibration information stored in the BME280 registers."""
@@ -147,7 +227,7 @@ class BME280:
         ctrl_hum = self._read_register_byte(0xF2)
         ctrl_meas = self._read_register_byte(0xF4)
         config = self._read_register_byte(0xF5)
-        calibration = self._read_calibration_data()
+        calibration = self.calibration
         unique_id, unique_id_source = self._detect_unique_id()
 
         return {
@@ -220,17 +300,10 @@ class BME280:
         table["status_flags"] = info["status_flags"]
         return table
 
-    def read(self):
-        """Read the latest temperature, pressure, and humidity values."""
-        time.sleep(self.timeout)
-        return {
-            "temperature_c": round(self.sensor.temperature, 2),
-            "pressure_hpa": round(self.sensor.pressure, 2),
-            "humidity_pct": round(self.sensor.humidity, 2),
-        }
-
     def close(self) -> None:
-        """Close the sensor connection when the context is exited."""
+        """Close the I2C connection."""
+        if self.i2c:
+            self.i2c.close()
 
     def __enter__(self) -> "BME280":
         return self
