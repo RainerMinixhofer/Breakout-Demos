@@ -116,6 +116,7 @@ class ThermalWebBackend:
         self.latest_jpeg: Optional[bytes] = None
         self.latest_integrated_jpeg: Optional[bytes] = None
         self._integration_samples: list[tuple[float, np.ndarray]] = []
+        self._last_integrated_image_time: float = 0.0
         self.latest_stats: Dict[str, float] = {
             "min": 0.0,
             "max": 0.0,
@@ -123,6 +124,7 @@ class ThermalWebBackend:
             "fps": 0.0,
         }
         self.status_register_polling_enabled = False
+        self.status_registers_ready = False
         self.latest_status_registers: Dict[str, object] = {
             "resolution": 0.0,
             "refresh_rate": 0.0,
@@ -306,6 +308,10 @@ class ThermalWebBackend:
         if not ok:
             raise RuntimeError("Failed to encode error frame")
         return encoded.tobytes()
+
+    def error_jpeg(self, message: str) -> bytes:
+        """Return a visible JPEG placeholder for an error state."""
+        return self._error_jpeg(message)
     # pylint: enable=E1101
 
     def start(self) -> None:
@@ -324,8 +330,12 @@ class ThermalWebBackend:
         with self.camera_lock:
             self.camera.i2c_tear_down()
 
-    def _read_status_registers(self) -> None:
+    def read_status_registers(self) -> None:
         """Read the MLX90640 status words used by the diagnostics panel."""
+        self._read_status_registers()
+
+    def _read_status_registers(self) -> None:
+        """Internal helper to refresh the cached status register snapshot."""
         with self.camera_lock:
             frame_data_words = [int(v) for v in list(self.camera.frame_data[:12])]
             eeprom_words = [int(v) for v in list(self.camera.eeprom_data[:12])]
@@ -339,6 +349,7 @@ class ThermalWebBackend:
                 "frame_data_words": frame_data_words,
                 "eeprom_words": eeprom_words,
             }
+            self.status_registers_ready = True
 
     def _capture_loop(self) -> None:
         """Continuously read, process, and publish camera frames."""
@@ -399,6 +410,7 @@ class ThermalWebBackend:
                     display_enhancement_enabled,
                 )
                 integrated_jpeg = latest_jpeg
+                update_integrated_image = False
                 if integration_time_seconds > 0.0:
                     sample_time = time.monotonic()
                     self._integration_samples.append((sample_time, frame.copy()))
@@ -409,27 +421,34 @@ class ThermalWebBackend:
                         if sample[0] >= cutoff
                     ]
                     if self._integration_samples:
-                        stacked = np.stack(
-                            [sample[1] for sample in self._integration_samples], axis=0
-                        )
-                        integrated_frame = stacked.mean(axis=0)
-                        integrated_jpeg = self._frame_to_jpeg(
-                            integrated_frame,
-                            fps,
-                            refresh_rate_code,
-                            average_frames,
-                            auto_scale,
-                            min_temp,
-                            max_temp,
-                            palette,
-                            interpolation,
-                            display_enhancement_enabled,
-                            integration_label=f"{integration_time_seconds:.1f}s",
-                        )
+                        # Update integrated image only when enough time has passed since last update
+                        time_since_last_update = sample_time - self._last_integrated_image_time
+
+                        if time_since_last_update >= integration_time_seconds - 0.01:
+                            stacked = np.stack(
+                                [sample[1] for sample in self._integration_samples], axis=0
+                            )
+                            integrated_frame = stacked.mean(axis=0)
+                            integrated_jpeg = self._frame_to_jpeg(
+                                integrated_frame,
+                                fps,
+                                refresh_rate_code,
+                                average_frames,
+                                auto_scale,
+                                min_temp,
+                                max_temp,
+                                palette,
+                                interpolation,
+                                display_enhancement_enabled,
+                                integration_label=f"{integration_time_seconds:.1f}s",
+                            )
+                            update_integrated_image = True
+                            self._last_integrated_image_time = sample_time
                 with self.state_lock:
                     self.latest_stats = latest_stats
                     self.latest_jpeg = latest_jpeg
-                    self.latest_integrated_jpeg = integrated_jpeg
+                    if update_integrated_image:
+                        self.latest_integrated_jpeg = integrated_jpeg
                     self.last_error = None
                     if status_registers_enabled:
                         self._read_status_registers()
@@ -477,7 +496,7 @@ class ThermalWebBackend:
                 "last_error": self.last_error,
                 "stats": dict(self.latest_stats),
             }
-            if include_status_registers:
+            if include_status_registers and self.status_registers_ready:
                 state["status_registers"] = dict(self.latest_status_registers)
             return state
 
@@ -618,6 +637,7 @@ class ThermalWebBackend:
                 self.average_frames = average_frames
             if integration_time_seconds is not None:
                 self.integration_time_seconds = integration_time_seconds
+                self._last_integrated_image_time = 0.0
                 if integration_time_seconds <= 0.0:
                     self._integration_samples = []
             if stripe_correction_enabled is not None:
@@ -656,6 +676,8 @@ def create_app(backend: ThermalWebBackend) -> Flask:
         )
         with backend.state_lock:
             backend.status_register_polling_enabled = include_status_registers
+            if include_status_registers:
+                backend.read_status_registers()
         return jsonify(backend.get_state(include_status_registers=include_status_registers))
 
     @app.post("/api/control")
@@ -704,7 +726,7 @@ def create_app(backend: ThermalWebBackend) -> Flask:
         if frame is None:
             frame = backend.latest_jpeg
         if frame is None:
-            frame = backend._error_jpeg("No integrated image available yet")
+            frame = backend.error_jpeg("No integrated image available yet")
         return Response(frame, mimetype="image/jpeg")
 
     return app
