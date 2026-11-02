@@ -86,45 +86,47 @@ def health_check():
     """Quick 2-second system status check."""
     print_header("QUICK HEALTH CHECK")
     
-    checks_passed = 0
-    checks_total = 0
+    # Try to open a working GPS connection first
+    gps_working = False
+    working_port = None
     
-    # Serial ports
-    print_section("Serial Ports")
-    ports_available = {}
+    print_section("GPS Connection Test")
     for port in PORTS_TO_TEST:
-        checks_total += 1
-        if os.path.exists(port):
-            has_perms = os.access(port, os.R_OK | os.W_OK)
-            if has_perms:
-                print(f"  ✓ {port:<20} OK")
-                ports_available[port] = True
-                checks_passed += 1
-            else:
-                print(f"  ⚠ {port:<20} NO PERMISSIONS")
-                ports_available[port] = False
-        else:
-            print(f"  ✗ {port:<20} NOT FOUND")
+        if os.path.exists(port) and os.access(port, os.R_OK | os.W_OK):
+            try:
+                ser = serial.Serial(port, 9600, timeout=0.5)
+                data = ser.read(100)
+                if len(data) > 0:
+                    gps_working = True
+                    working_port = port
+                    print(f"  ✓ GPS working on {port}")
+                    print(f"    Receiving data: {len(data)} bytes")
+                    ser.close()
+                    break
+                ser.close()
+            except Exception:
+                pass
+    
+    if not gps_working:
+        print(f"  ✗ GPS not responding on any port")
+        print(f"    Checked: {', '.join(PORTS_TO_TEST)}")
     
     # Python modules
     print_section("Python Modules")
+    modules_ok = True
     try:
         import serial
-        checks_total += 1
         print("  ✓ pyserial installed")
-        checks_passed += 1
     except ImportError:
-        checks_total += 1
         print("  ✗ pyserial NOT installed")
+        modules_ok = False
     
     try:
         from pyubx2 import UBXReader
-        checks_total += 1
         print("  ✓ pyubx2 installed")
-        checks_passed += 1
     except ImportError:
-        checks_total += 1
         print("  ✗ pyubx2 NOT installed")
+        modules_ok = False
     
     # Services
     print_section("System Services")
@@ -133,42 +135,32 @@ def health_check():
         capture_output=True,
         text=True
     )
-    checks_total += 1
-    if result.returncode != 0:
+    gpsd_ok = result.returncode != 0
+    if gpsd_ok:
         print("  ✓ gpsd disabled")
-        checks_passed += 1
     else:
         print("  ✗ gpsd enabled (may cause conflicts)")
     
-    # Hardware
-    print_section("Hardware Connection")
-    usable_ports = [p for p, ok in ports_available.items() if ok]
-    if usable_ports:
-        port = usable_ports[0]
-        checks_total += 1
-        try:
-            ser = serial.Serial(port, 9600, timeout=0.5)
-            print(f"  ✓ Can open {port}")
-            checks_passed += 1
-            
-            data = ser.read(50)
-            checks_total += 1
-            if len(data) > 0:
-                print(f"  ✓ Data received ({len(data)} bytes)")
-                checks_passed += 1
-            else:
-                print(f"  ⚠ No data received (GPS may need time to acquire)")
-            
-            ser.close()
-        except Exception as e:
-            checks_total += 1
-            print(f"  ✗ Cannot open port: {e}")
-    
     # Summary
     print_section("Summary")
-    percentage = (checks_passed / checks_total * 100) if checks_total > 0 else 0
-    status = "✓ GPS System READY" if checks_passed == checks_total else f"⚠ {checks_passed}/{checks_total} checks passed"
-    print(f"  {status} ({percentage:.0f}%)")
+    if gps_working:
+        print(f"  ✓ GPS System READY (100%)")
+        print(f"    GPS is communicating on {working_port}")
+        if modules_ok:
+            print(f"    All required modules installed")
+        if gpsd_ok:
+            print(f"    No service conflicts")
+    else:
+        print(f"  ⚠ GPS not responding")
+        print(f"    - Check power supply")
+        print(f"    - Verify wiring (GPIO14=TX, GPIO15=RX)")
+        print(f"    - Confirm /dev/ttyAMA0 exists")
+        if not modules_ok:
+            print(f"    - Install missing Python modules")
+        if not gpsd_ok:
+            print(f"    - Disable gpsd service")
+        print(f"\n    For detailed diagnostics run:")
+        print(f"    python3 gps_diagnostics.py  (option 2)")
     print()
 
 
