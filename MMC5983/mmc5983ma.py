@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import threading
 import time
 from typing import Iterable, Tuple
 
@@ -174,6 +175,46 @@ class MMC5983MA:
         self.z_offset = (z1 + z2) / 2.0
 
 
+def run_web_server(sensor: MMC5983MA, port: int = 5000, host: str = "0.0.0.0") -> None:
+    """Run a Flask web server showing real-time sensor orientation."""
+    from flask import Flask, jsonify, render_template
+
+    app = Flask(__name__)
+    app.config["PROPAGATE_EXCEPTIONS"] = True
+    
+    sensor_data = {"heading": 0.0, "x": 0.0, "y": 0.0, "z": 0.0}
+    lock = threading.Lock()
+
+    def update_sensor():
+        """Background thread that continuously updates sensor readings."""
+        while True:
+            try:
+                heading_deg, x, y, z = sensor.read_orientation()
+                with lock:
+                    sensor_data["heading"] = round(heading_deg, 2)
+                    sensor_data["x"] = round(x, 6)
+                    sensor_data["y"] = round(y, 6)
+                    sensor_data["z"] = round(z, 6)
+                time.sleep(0.5)
+            except Exception:
+                time.sleep(1)
+
+    @app.route("/")
+    def index():
+        return render_template("mmc5983ma.html")
+
+    @app.route("/api/orientation")
+    def get_orientation():
+        with lock:
+            return jsonify(sensor_data)
+
+    thread = threading.Thread(target=update_sensor, daemon=True)
+    thread.start()
+
+    print(f"Starting MMC5983MA web server on http://{host}:{port}")
+    app.run(host=host, port=port, debug=False, use_reloader=False)
+
+
 def main() -> None:
     import argparse
 
@@ -187,6 +228,9 @@ def main() -> None:
     parser.add_argument("--microtesla", action="store_true", help="Print values in microtesla instead of gauss")
     parser.add_argument("--orientation", action="store_true",
                         help="Print the horizontal heading in degrees assuming the board lies flat")
+    parser.add_argument("--web", action="store_true", help="Launch a Flask web server showing orientation")
+    parser.add_argument("--port", type=int, default=5000, help="Port for web server (default: 5000)")
+    parser.add_argument("--host", default="0.0.0.0", help="Host for web server (default: 0.0.0.0)")
     args = parser.parse_args()
 
     with MMC5983MA(bus_number=args.bus, address=args.address) as sensor:
@@ -196,24 +240,27 @@ def main() -> None:
         if args.calibrate:
             sensor.calibrate_offsets()
 
-        for index in range(args.samples):
-            if args.microtesla:
-                x, y, z = sensor.read_magnetic_microtesla()
-                unit = "uT"
-            else:
-                x, y, z = sensor.read_magnetic()
-                unit = "G"
+        if args.web:
+            run_web_server(sensor, port=args.port, host=args.host)
+        else:
+            for index in range(args.samples):
+                if args.microtesla:
+                    x, y, z = sensor.read_magnetic_microtesla()
+                    unit = "uT"
+                else:
+                    x, y, z = sensor.read_magnetic()
+                    unit = "G"
 
-            if args.orientation:
-                heading_deg, x_axis, y_axis, z_axis = sensor.read_orientation()
-                print(
-                    f"sample {index}: heading={heading_deg: .2f} deg  "
-                    f"x={x_axis: .6f} {unit}  y={y_axis: .6f} {unit}  z={z_axis: .6f} {unit}"
-                )
-            else:
-                print(f"sample {index}: x={x: .6f} {unit}  y={y: .6f} {unit}  z={z: .6f} {unit}")
-            if index + 1 < args.samples:
-                time.sleep(args.delay)
+                if args.orientation:
+                    heading_deg, x_axis, y_axis, z_axis = sensor.read_orientation()
+                    print(
+                        f"sample {index}: heading={heading_deg: .2f} deg  "
+                        f"x={x_axis: .6f} {unit}  y={y_axis: .6f} {unit}  z={z_axis: .6f} {unit}"
+                    )
+                else:
+                    print(f"sample {index}: x={x: .6f} {unit}  y={y: .6f} {unit}  z={z: .6f} {unit}")
+                if index + 1 < args.samples:
+                    time.sleep(args.delay)
 
 
 if __name__ == "__main__":

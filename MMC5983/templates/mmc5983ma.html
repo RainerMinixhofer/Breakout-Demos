@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMC5983MA Magnetometer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .compass {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 50px;
+        }
+
+        .compass-container {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: linear-gradient(180deg, #f5f5f5 0%, #fff 100%);
+            border: 3px solid #667eea;
+            box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.1), 0 4px 15px rgba(0, 0, 0, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .compass-directions {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .compass-direction {
+            position: absolute;
+            font-weight: bold;
+            font-size: 18px;
+            color: #667eea;
+        }
+
+        .direction-n { top: 20px; }
+        .direction-s { bottom: 20px; }
+        .direction-e { right: 20px; }
+        .direction-w { left: 20px; }
+
+        .compass-needle {
+            position: absolute;
+            width: 8px;
+            height: 120px;
+            background: linear-gradient(180deg, #ff4757 0%, #ff6b7a 50%, transparent 100%);
+            border-radius: 4px 4px 0 0;
+            transform-origin: bottom center;
+            bottom: 50%;
+            transition: transform 0.3s ease-out;
+            box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
+        }
+
+        .compass-center {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+            z-index: 10;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .data-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .data-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .data-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .data-unit {
+            font-size: 14px;
+            color: #aaa;
+            margin-left: 5px;
+        }
+
+        .heading-item {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-left: none;
+            padding: 25px;
+        }
+
+        .heading-item .data-label {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .heading-item .data-value {
+            color: white;
+            font-size: 36px;
+        }
+
+        .heading-item .data-unit {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .status {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .status.connected {
+            color: #27ae60;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #27ae60;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .component-values {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .component-value {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #eee;
+        }
+
+        .component-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .component-data {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .compass-container {
+                width: 200px;
+                height: 200px;
+            }
+
+            .compass-needle {
+                height: 100px;
+            }
+
+            .data-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .heading-item {
+                grid-column: 1;
+            }
+
+            .data-value {
+                font-size: 20px;
+            }
+
+            .heading-item .data-value {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧭 MMC5983MA Magnetometer</h1>
+            <p class="subtitle">Real-time sensor orientation</p>
+        </div>
+
+        <div class="compass">
+            <div class="compass-container">
+                <div class="compass-directions">
+                    <div class="compass-direction direction-n">N</div>
+                    <div class="compass-direction direction-s">S</div>
+                    <div class="compass-direction direction-e">E</div>
+                    <div class="compass-direction direction-w">W</div>
+                </div>
+                <div class="compass-needle" id="compassNeedle"></div>
+                <div class="compass-center"></div>
+            </div>
+        </div>
+
+        <div class="data-grid">
+            <div class="data-item heading-item">
+                <div class="data-label">Heading</div>
+                <div class="data-value">
+                    <span id="heading">0.00</span>
+                    <span class="data-unit">°</span>
+                </div>
+                <div class="component-values">
+                    <div class="component-value">
+                        <div class="component-label">X Axis</div>
+                        <div class="component-data" id="x-value">0.000000</div>
+                        <div class="component-label">Gauss</div>
+                    </div>
+                    <div class="component-value">
+                        <div class="component-label">Y Axis</div>
+                        <div class="component-data" id="y-value">0.000000</div>
+                        <div class="component-label">Gauss</div>
+                    </div>
+                    <div class="component-value">
+                        <div class="component-label">Z Axis</div>
+                        <div class="component-data" id="z-value">0.000000</div>
+                        <div class="component-label">Gauss</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status connected">
+            <span class="status-indicator connected"></span>
+            <span>Sensor connected and updating</span>
+        </div>
+    </div>
+
+    <script>
+        const compassNeedle = document.getElementById('compassNeedle');
+        const headingElement = document.getElementById('heading');
+        const xValue = document.getElementById('x-value');
+        const yValue = document.getElementById('y-value');
+        const zValue = document.getElementById('z-value');
+        const statusIndicator = document.querySelector('.status-indicator');
+        const statusText = document.querySelector('.status');
+
+        function updateSensorData() {
+            fetch('/api/orientation')
+                .then(response => {
+                    if (response.ok) {
+                        statusIndicator.classList.add('connected');
+                        statusText.classList.add('connected');
+                        return response.json();
+                    }
+                    throw new Error('Failed to fetch data');
+                })
+                .then(data => {
+                    const heading = data.heading;
+                    const x = data.x;
+                    const y = data.y;
+                    const z = data.z;
+
+                    // Update compass needle rotation
+                    compassNeedle.style.transform = `rotate(${heading}deg)`;
+
+                    // Update display values
+                    headingElement.textContent = heading.toFixed(2);
+                    xValue.textContent = x.toFixed(6);
+                    yValue.textContent = y.toFixed(6);
+                    zValue.textContent = z.toFixed(6);
+                })
+                .catch(error => {
+                    console.error('Error updating sensor data:', error);
+                    statusIndicator.classList.remove('connected');
+                    statusText.classList.remove('connected');
+                    statusText.innerHTML = '<span class="status-indicator"></span><span>Waiting for sensor...</span>';
+                });
+        }
+
+        // Update sensor data immediately and then every 500ms
+        updateSensorData();
+        setInterval(updateSensorData, 500);
+    </script>
+</body>
+</html>
