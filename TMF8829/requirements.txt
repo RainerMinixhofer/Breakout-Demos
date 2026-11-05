@@ -1,0 +1,8 @@
+./packages/aos_com-1.0.24-py3-none-any.whl
+pyserial
+intelhex
+matplotlib
+numpy
+flask
+pyinstaller
+pytest

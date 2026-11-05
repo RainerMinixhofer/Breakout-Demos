@@ -1,0 +1,124 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    SHT45 SENSOR READER - CHEATSHEET                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+INSTALL DEPENDENCIES
+┌────────────────────────────────────────────────────────────────────────────┐
+│ $ pip install -r requirements.txt                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+QUICK TESTS
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Single reading:                                                            │
+│   $ python3 sht45_simple.py                                               │
+│                                                                            │
+│ Continuous reading:                                                       │
+│   $ python3 sht45_reader.py                                              │
+│                                                                            │
+│ Log to CSV:                                                               │
+│   $ python3 sht45_logger.py                                              │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ADVANCED OPTIONS (sht45_logger.py)
+┌────────────────────────────────────────────────────────────────────────────┐
+│ --output FILE         CSV output file (default: sht45_data.csv)           │
+│ --interval SECONDS    Time between readings (default: 1.0)                │
+│ --duration SECONDS    Stop after N seconds (optional)                     │
+│ --bus NUMBER          I2C bus number (default: 1)                         │
+│ --address 0xXX        I2C address in hex (default: 0x44)                  │
+│                                                                            │
+│ Examples:                                                                  │
+│   $ python3 sht45_logger.py --interval 5 --output my_data.csv             │
+│   $ python3 sht45_logger.py --duration 3600 --interval 10                │
+│   $ python3 sht45_logger.py --bus 0 --address 0x45                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+VERIFY I2C CONNECTION
+┌────────────────────────────────────────────────────────────────────────────┐
+│ $ i2cdetect -y 1                                                           │
+│                                                                            │
+│ Should show the sensor at 0x44 (or 0x45)                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+PIN WIRING (Raspberry Pi)
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SHT45 Pin    →  Raspberry Pi       Color                                  │
+│ ────────────────────────────────────────────────────────────────────────  │
+│ SDA (1)      →  GPIO 2 (Pin 3)     Green                                  │
+│ GND (2)      →  GND (Pin 6)        Black                                  │
+│ SCL (3)      →  GPIO 3 (Pin 5)     Yellow                                 │
+│ VDD (4)      →  3.3V (Pin 1)       Red                                    │
+│                                                                            │
+│ Add 4.7kΩ pull-up resistors on SCL/SDA lines                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ENABLE I2C ON RASPBERRY PI
+┌────────────────────────────────────────────────────────────────────────────┐
+│ $ sudo raspi-config                                                        │
+│   → Interface Options → I2C → Enable                                      │
+│   → Reboot                                                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+COMMON ISSUES
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Issue: "No such file: /dev/i2c-1"                                        │
+│ Fix:  Enable I2C (see above), reboot                                     │
+│                                                                            │
+│ Issue: "Remote I/O error"                                                │
+│ Fix:  Check wiring, verify pull-up resistors                            │
+│                                                                            │
+│ Issue: "Permission denied"                                               │
+│ Fix:  $ sudo usermod -a -G i2c $USER                                     │
+│      (then log out and back in)                                          │
+│                                                                            │
+│ Issue: "ModuleNotFoundError: sensirion..."                               │
+│ Fix:  $ pip install -r requirements.txt                                  │
+└────────────────────────────────────────────────────────────────────────────┘
+
+FILE QUICK REFERENCE
+┌────────────────────────────────────────────────────────────────────────────┐
+│ sht45_simple.py    - One-shot reader (quick test)                         │
+│ sht45_reader.py    - Continuous reader (main use)                        │
+│ sht45_logger.py    - CSV logger (data collection)                        │
+│                                                                            │
+│ QUICKSTART.md      - Fast setup guide                                    │
+│ README.md          - Complete documentation                              │
+│ EXAMPLES.md        - Real-world usage examples                           │
+│ INDEX.md           - File index and navigation                           │
+└────────────────────────────────────────────────────────────────────────────┘
+
+PYTHON INTEGRATION
+┌────────────────────────────────────────────────────────────────────────────┐
+│ from sht45_simple import read_sht45_once                                  │
+│                                                                            │
+│ data = read_sht45_once()                                                  │
+│ print(f"Temperature: {data['temperature_c']:.2f}°C")                      │
+│ print(f"Humidity: {data['humidity_percent']:.2f}%")                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+SYSTEMD SERVICE (Background logging)
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 1. Create /etc/systemd/system/sht45.service                              │
+│ 2. Add (see EXAMPLES.md for full content):                               │
+│    [Service]                                                              │
+│    ExecStart=/usr/bin/python3 /path/to/sht45_logger.py ...              │
+│ 3. $ sudo systemctl daemon-reload                                        │
+│ 4. $ sudo systemctl enable sht45.service                                 │
+│ 5. $ sudo systemctl start sht45.service                                  │
+│ 6. $ sudo systemctl status sht45.service                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+HELP & DOCUMENTATION
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Start here:        QUICKSTART.md                                          │
+│ Full docs:         README.md                                              │
+│ Examples:          EXAMPLES.md                                            │
+│ File guide:        INDEX.md                                               │
+│                                                                            │
+│ Official library:  https://pypi.org/project/sensirion-i2c-sht4x/         │
+│ Datasheet:         https://sensirion.com/products/catalog/SHT45/         │
+└────────────────────────────────────────────────────────────────────────────┘
+
+═════════════════════════════════════════════════════════════════════════════
+Print this cheatsheet: less CHEATSHEET.txt or view it anytime!
+═════════════════════════════════════════════════════════════════════════════
