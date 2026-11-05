@@ -8,7 +8,8 @@ This project provides a small Python driver and command-line interface for the M
 - Converts readings to gauss or microtesla
 - Supports simple offset calibration
 - Includes a quick CLI test tool for live readings
-- **Real-time web interface displaying sensor orientation with compass visualization** (via `--web`)
+- **3D spherical visualization with rotating camera view** (via `--web`)
+- **Interactive magnetic field vector display** showing magnitude and direction in 3D space
 - Works with Linux I2C devices using `smbus2`
 
 ## Hardware setup
@@ -67,7 +68,7 @@ python3 mmc5983ma.py --bus 1 --address 0x30 --calibrate --samples 3
 
 ### Web Interface
 
-Launch the real-time web interface showing orientation and live compass:
+Launch the real-time web interface with 3D spherical visualization:
 
 ```bash
 python3 mmc5983ma.py --web
@@ -75,10 +76,19 @@ python3 mmc5983ma.py --web
 
 Then open `http://localhost:5000` in your browser. The interface displays:
 
-- **Real-time compass** with rotating needle pointing to magnetic north
-- **Heading angle** in degrees (0° = North, 90° = East, 180° = South, 270° = West)
-- **X, Y, Z magnetic field components** in gauss
+- **3D spherical visualization** showing the magnetic field vector in 3D space
+- **Real-time rotating view** with automatic camera rotation
+- **Magnetic field magnitude** in gauss with dynamic scaling
+- **Spherical coordinates**: θ (polar angle) and φ (azimuthal angle)
+- **X, Y, Z component breakdown** with live visual bars
+- **Coordinate axes** (X=red, Y=green, Z=blue) for reference
 - **Live updates** refreshed every 500ms
+
+The 3D view includes:
+- A semi-transparent reference sphere representing the measurement space
+- An animated arrow showing the magnetic field vector direction
+- Wireframe grid for spatial reference
+- RGB axes for X, Y, Z orientation
 
 To run on a different port or bind to a different host:
 
