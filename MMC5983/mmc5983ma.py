@@ -139,6 +139,18 @@ class MMC5983MA:
             heading_deg += 360.0
         return heading_deg, x, y, z
 
+    def read_inclination(self) -> Tuple[float, float, float, float, float]:
+        """Return the inclination angle and X/Y/Z magnetic components.
+
+        The inclination (or dip) angle is the angle of the magnetic field vector
+        relative to the horizontal plane. Positive values indicate the field points
+        above the horizon (north), negative values below. Range: -90° to +90°.
+        """
+        x, y, z = self.read_magnetic()
+        horizontal_magnitude = math.sqrt(x * x + y * y)
+        inclination_deg = math.degrees(math.atan2(z, horizontal_magnitude))
+        return inclination_deg, x, y, z, horizontal_magnitude
+
     def read_temperature_c(self) -> float:
         """Temperature in °C, per the MMC5983MA datasheet."""
         current = self.read_byte(self.REG_INT_CTRL_0)
@@ -182,7 +194,7 @@ def run_web_server(sensor: MMC5983MA, port: int = 5000, host: str = "0.0.0.0") -
     app = Flask(__name__)
     app.config["PROPAGATE_EXCEPTIONS"] = True
     
-    sensor_data = {"heading": 0.0, "x": 0.0, "y": 0.0, "z": 0.0}
+    sensor_data = {"heading": 0.0, "inclination": 0.0, "x": 0.0, "y": 0.0, "z": 0.0}
     lock = threading.Lock()
 
     def update_sensor():
@@ -190,8 +202,10 @@ def run_web_server(sensor: MMC5983MA, port: int = 5000, host: str = "0.0.0.0") -
         while True:
             try:
                 heading_deg, x, y, z = sensor.read_orientation()
+                inclination_deg, _, _, _, _ = sensor.read_inclination()
                 with lock:
                     sensor_data["heading"] = round(heading_deg, 2)
+                    sensor_data["inclination"] = round(inclination_deg, 2)
                     sensor_data["x"] = round(x, 6)
                     sensor_data["y"] = round(y, 6)
                     sensor_data["z"] = round(z, 6)
