@@ -1,0 +1,8 @@
+ # Version Changelog
+1.0 first released version
+2.0 arduino zmq server improved
+3.0 hexfile changed; support for _hv_cp_overload_detect, i2c_slave_address
+4.0 in stop measurement check for device is wake up; for standby timed mode
+5.0 linux: measurement.py and zmq server work also with spi dev
+6.0 hexfile changed, i3c ibi, fov correction, extended range mode support
+    Added python wheel packages for Linux ( amd64 and aarch64 )
